@@ -1,0 +1,380 @@
+
+<!doctype html>
+<html>
+	<head>
+
+		<style type="text/css">
+		table {
+			border: 2px solid #ccc;
+		}
+		td {
+			position: relative;
+			border: 1px solid #ccc;
+			width: 30px;
+			height: 30px;
+			font-family: monospace;
+			font-size: 14px;
+			text-align: center;
+		}
+		td:hover {
+			background: #f9f9f9;
+			-webkit-user-select: none;
+			cursor: pointer;
+		}
+		tr:first-child td,
+		tr:last-child td,
+		tr td:first-child,
+		tr td:last-child {
+			background: #eee;
+			font-family: Helvetica;
+			cursor: default;
+		}
+		td .cursor {
+			position: absolute;
+			top: 7px;
+			left: 7px;
+			width: 0;
+			height: 0;
+			border: 15px solid red;
+			border-left-color: transparent;
+			border-left-width: 7.5px;
+			border-right-color: transparent;
+			border-right-width: 7.5px;
+			border-top: none;
+		}
+		td .cursor.up {	transform: rotate(0deg); }
+		td .cursor.left { transform: rotate(-90deg); }
+		td .cursor.right { transform: rotate(90deg); }
+		td .cursor.down { transform: rotate(180deg); }
+		</style>
+
+		<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.6.1/angular.js"></script>
+		<script type="text/javascript">
+		angular.module('mirrorcryptApp', [])
+			.controller('mirrorcryptController', function( $scope, $timeout ){
+
+				$scope.speed = 50;
+				$scope.alphabet = 'abcdefghijklmnopqrstuvwxyz';
+				$scope.grid = [];
+				$scope.cursor = {
+					x: undefined,
+					y: undefined,
+					direction: undefined
+				}
+				$scope.encrypting = false;
+				$scope.playing = false;
+				$scope.encryptLetterCallback = undefined;
+				$scope.uncryptedWord = 'Helloworld';
+				$scope.encryptedWord = undefined;
+
+				$scope.axis = {};
+				$scope.axis.top = $scope.alphabet.substr(0, $scope.alphabet.length / 2);
+				$scope.axis.right = $scope.alphabet.substr($scope.alphabet.length / 2, $scope.alphabet.length);
+				$scope.axis.left = $scope.axis.top.toUpperCase();
+				$scope.axis.bottom = $scope.axis.right.toUpperCase();
+
+				$scope.mirrors = {}
+
+				// generate random mirrors
+				for( var i = 0; i < 30; i++ ) {
+					var x = Math.floor( Math.random() * $scope.alphabet.length/2 ) + 1;
+					var y = Math.floor( Math.random() * $scope.alphabet.length/2 ) + 1;
+					$scope.mirrors[ x + ',' + y ] = Math.random() > 0.5 ? '/' : '\\';
+				}
+
+				$scope.getMirror = function( x, y ) {
+					return $scope.mirrors[ x + ',' + y ];
+				}
+
+				$scope.encryptWord = function() {
+
+					if( $scope.encrypting ) return;
+						$scope.encrypting = true;
+
+					$scope.encryptedWord = '';
+
+					var letters = $scope.uncryptedWord.split('');
+					var i = 0;
+
+					(function encryptLetter(){
+
+						$scope.encryptLetter( letters[i], function( letter ){
+							$scope.encryptedWord += letter;
+
+							if( i === $scope.uncryptedWord.length-1 ) {
+								$scope.encrypting = false;
+								$scope.cursor = {
+									x: undefined,
+									y: undefined,
+									direction: undefined
+								}
+							} else {
+								i++;
+								encryptLetter();
+							}
+						});
+
+					})()
+				}
+
+				$scope.encryptLetter = function( letter, callback ) {
+
+					$scope.cursor = $scope.getLetterStart( letter );
+					$scope.encryptLetterCallback = callback;
+					$scope.playing = true;
+
+					$scope.step();
+				}
+
+				$scope.getLetterStart = function( letter ) {
+
+					var startX = undefined;
+					var startY = undefined;
+					var startDirection = undefined;
+
+					var alphabetIndex = $scope.alphabet.indexOf( letter.toLowerCase() );
+					var isUppercase = ( letter === letter.toUpperCase() );
+					if( isUppercase ) {
+
+						// left col
+						if( alphabetIndex < $scope.alphabet.length/2 ) {
+							startX = 0;
+							startY = alphabetIndex + 1;
+							startDirection = 'right';
+						}
+
+						// bottom col
+						else {
+							startY = $scope.alphabet.length/2 + 1;
+							startX = alphabetIndex + 1 - $scope.alphabet.length / 2;
+							startDirection = 'up';
+						}
+					} else {
+
+						// top col
+						if( alphabetIndex < $scope.alphabet.length/2 ) {
+							startY = 0;
+							startX = alphabetIndex + 1;
+							startDirection = 'down';
+						}
+
+						// right col
+						else {
+							startY = alphabetIndex + 1 - $scope.alphabet.length / 2;
+							startX = $scope.alphabet.length / 2 + 1;
+							startDirection = 'left';
+						}
+					}
+
+					return { x: startX, y: startY, direction: startDirection };
+
+				}
+
+				$scope.isCursor = function( x, y ) {
+					return x === $scope.cursor.x && y === $scope.cursor.y;
+				}
+
+				$scope.toggleMirror = function( x, y ) {
+
+					if( $scope.encrypting )
+						return;
+
+					if( x === 0
+					 || y === 0
+					 || x === $scope.alphabet.length/2+1
+					 || y === $scope.alphabet.length/2+1 )
+					 return;
+
+					var mirror = $scope.getMirror( x, y );
+					if( mirror ) {
+						if( mirror === '/' ) {
+							$scope.mirrors[ x + ',' + y ] = '\\';
+						} else if( mirror === '\\' ) {
+							delete $scope.mirrors[ x + ',' + y ];
+						}
+					} else {
+						$scope.mirrors[ x + ',' + y ] = '/';
+					}
+
+				}
+
+				$scope.step = function(){
+
+					if( !$scope.playing ) return;
+
+					switch( $scope.cursor.direction ) {
+						case 'down':
+							$scope.cursor.y++;
+							break;
+						case 'up':
+							$scope.cursor.y--;
+							break;
+						case 'right':
+							$scope.cursor.x++;
+							break;
+						case 'left':
+							$scope.cursor.x--;
+							break;
+					}
+
+					var mirror = $scope.getMirror( $scope.cursor.x, $scope.cursor.y );
+					if( mirror ) {
+						if( mirror === '\\' ) {
+							switch( $scope.cursor.direction ) {
+								case 'down':
+									$scope.cursor.direction = 'right';
+									break;
+								case 'up':
+									$scope.cursor.direction = 'left';
+									break;
+								case 'right':
+									$scope.cursor.direction = 'down';
+									break;
+								case 'left':
+									$scope.cursor.direction = 'up';
+									break;
+							}
+						} else if( mirror === '/' ) {
+							switch( $scope.cursor.direction ) {
+								case 'down':
+									$scope.cursor.direction = 'left';
+									break;
+								case 'up':
+									$scope.cursor.direction = 'right';
+									break;
+								case 'left':
+									$scope.cursor.direction = 'down';
+									break;
+								case 'right':
+									$scope.cursor.direction = 'up';
+									break;
+							}
+						}
+					}
+
+					// if ended, get letter
+					if( $scope.cursor.x === 0
+					 || $scope.cursor.y === 0
+					 || $scope.cursor.x === $scope.alphabet.length/2+1
+					 || $scope.cursor.y === $scope.alphabet.length/2+1 ) {
+
+						$scope.playing = false;
+
+						var letter = undefined;
+
+						// if left
+						if( $scope.cursor.x === 0 ) {
+							letter = $scope.alphabet.charAt( $scope.cursor.y - 1 );
+							letter = letter.toUpperCase();
+						}
+
+						// if right
+						else if( $scope.cursor.x - 1 === $scope.alphabet.length / 2 ) {
+							letter = $scope.alphabet.charAt( $scope.cursor.y - 1 + $scope.alphabet.length / 2 );
+						}
+
+						// if top
+						if( $scope.cursor.y === 0 ) {
+							letter = $scope.alphabet.charAt( $scope.cursor.x - 1 );
+						}
+
+						// if bottom
+						else if( $scope.cursor.y - 1 === $scope.alphabet.length / 2 ) {
+							letter = $scope.alphabet.charAt( $scope.cursor.x - 1 + $scope.alphabet.length / 2 );
+							letter = letter.toUpperCase();
+						}
+
+						$scope.encryptLetterCallback( letter );
+
+					} else {
+						$timeout( $scope.step, $scope.speed );
+					}
+
+				}
+
+			})
+			.filter('range', function() {
+			  return function(input, total) {
+			    total = parseInt(total);
+
+			    for (var i=0; i<total; i++) {
+			      input.push(i);
+			    }
+
+			    return input;
+			  };
+			})
+		</script>
+
+	</head>
+	<body
+		ng-app="mirrorcryptApp"
+		ng-controller="mirrorcryptController"
+	>
+
+		<h1>Mirror encrypter</h1>
+		<p>As described on Reddit: <a href="https://www.reddit.com/r/dailyprogrammer/comments/4m3ddb/20160601_challenge_269_intermediate_mirror/" target="_blank">https://www.reddit.com/r/dailyprogrammer/comments/4m3ddb/20160601_challenge_269_intermediate_mirror/</a>. Made by Emile Nijssen in ~1.5h.</p>
+
+		<table cellpadding="0" cellspacing="0">
+			<tr
+				ng-repeat="y in [] | range:(alphabet.length/2+2)"
+			>
+				<td
+					ng-repeat="x in [] | range:(alphabet.length/2+2)"
+					ng-click="toggleMirror( x, y )"
+				>
+					<div ng-if="y === 0 && x > 0">
+						{{axis.top.charAt(x-1)}}
+					</div>
+
+					<div ng-if="x === 0 && y > 0">
+						{{axis.left.charAt(y-1)}}
+					</div>
+
+					<div ng-if="y === ( alphabet.length/2 + 1 ) && x > 0">
+						{{axis.bottom.charAt(x-1)}}
+					</div>
+
+					<div ng-if="x === ( alphabet.length/2 + 1 ) && y > 0">
+						{{axis.right.charAt(y-1)}}
+					</div>
+
+					<div
+						ng-if="getMirror( x, y )"
+						ng-switch="getMirror( x, y )"
+					>
+						<div ng-switch-when="\">\</div>
+						<div ng-switch-when="/">/</div>
+					</div>
+
+					<div
+						class="cursor {{cursor.direction}}"
+						ng-if="isCursor( x, y )"
+					>
+
+					</div>
+
+				</td>
+			</tr>
+		</table>
+
+<pre>
+uncryptedWord: {{uncryptedWord}}
+encryptedWord: {{encryptedWord}}
+</pre>
+
+		<p>
+			Step delay: <input type="range" ng-model="speed" min="0" max="1000" /> {{speed}}ms
+		</p>
+
+		<p>
+			Enter your word: <input type="text" ng-model="uncryptedWord" ng-disabled="encrypting" />
+			<input type="submit" ng-click="encryptWord()" value="Encrypt" ng-disabled="encrypting" />
+		</p>
+
+		<p>
+			Hint: click a field to create or remove a mirror.
+		</p>
+
+	</body>
+</html>
